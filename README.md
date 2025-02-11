@@ -16,6 +16,7 @@ pip3 install -r requirements.txt or pip the libraries inside requirements.txt
 The run_match.py file should be in the root directory for the local-boostrap match runner.  
 
 (activate venv if you set that up)
+
 python3 run_match.py
 
 ## How to start a match 
