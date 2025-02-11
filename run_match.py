@@ -93,9 +93,9 @@ async def on_message(message):
     if message.author == client.user:
         return
     if message.content.startswith('!match'):
-        _, match_params = message.content.split()
-        if len(match_params.split()) == 2:
-            opponent, the_map = match_params.split()
+        _, *match_params = message.content.split()
+        if len(match_params) == 2:
+            opponent, the_map = match_params
         else:
             opponent = match_params        
             the_map = random.choice(MAPS)
