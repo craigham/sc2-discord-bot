@@ -22,6 +22,8 @@ python3 run_match.py
 ## How to start a match 
 (The bot actually listens on all channels for these commands, by convention i just do it in the match-runner channel):
 
+# Warning.  Running a match will overrite your matches file.  Make a backup if you want to keep it.
+
 !match 12PoolBot Acropolis
 
 to create a match with a random map, omit the map.
