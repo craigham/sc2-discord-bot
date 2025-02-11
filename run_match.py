@@ -11,7 +11,7 @@ import os
 load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 PLAYER1 = os.getenv('PLAYER1')
-CHANNEL_ID = os.getenv('CHANNEL_ID')
+CHANNEL_NAME = 'match-runner'
 
 MAPS_PATH = './maps'
 LADDERBOTS_TYPE = {"BinaryCpp": "cpplinux", "Python": "python", "DotNetCore": "dotnetcore"}
@@ -44,6 +44,7 @@ class Sc2Runner(discord.Client):
         self.match_queue = []
         self.queue_task = None
         self.current_match = None
+        self.channel_id = None
 
     def queue_match(self, opponent, map_name):
         self.match_queue.append(SC2Match(map_name, self.bot_name, opponent, 3))
@@ -61,9 +62,15 @@ class Sc2Runner(discord.Client):
             await asyncio.sleep(3)  # Sleep to prevent tight loop
 
     async def report_result(self, match:SC2Match):
-        match_results = f'Match results: {get_results_json()[-1]}'
-        print(match_results)
-        # await self.get_channel(CHANNEL_ID).send(match_results)
+        match_results = get_results_json()[-1]
+        match_results['opponent'] = match.bot2
+        match_results['map'] = match.map
+        formatted_results = f"**Match Results:**\n```json\n{json.dumps(match_results, indent=4)}\n```"
+        print(formatted_results)
+        print(f'Channel id: {self.channel_id}')
+        if self.channel_id:
+            channel = self.get_channel(self.channel_id)
+            await channel.send(formatted_results)
 
     async def do_match(self, match:SC2Match):        
         matchString = f"1,{match.bot1},T,python,2,{match.bot2},T,{get_bot_exe_type(match.bot2)},{match.map}"
@@ -74,7 +81,22 @@ class Sc2Runner(discord.Client):
         await process.communicate()
         
     async def setup_hook(self):
-        self.queue_task = self.loop.create_task(self.process_queue())        
+        self.queue_task = self.loop.create_task(self.process_queue())  
+        
+
+    async def find_channel_id(self):
+        print('waiting for ready')
+        await self.wait_until_ready()
+        print('ready, finding channel id')
+        print(f'Guilds: {self.guilds}')
+        for guild in self.guilds:
+            print(f'Guild: {guild}')
+            channel = discord.utils.get(guild.text_channels, name=CHANNEL_NAME)
+            print(f'Channel: {channel}')
+            if channel:
+                self.channel_id = channel.id
+                print(f'Channel id: {self.channel_id}')
+                break      
         
         
 # channel = await self.fetch_channel(CHANNEL_ID)
@@ -84,9 +106,11 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = Sc2Runner(PLAYER1, intents=intents)
 
+
 @client.event
 async def on_ready():
     print(f'We have logged in as {client.user}')
+    await client.find_channel_id()
 
 @client.event
 async def on_message(message):
