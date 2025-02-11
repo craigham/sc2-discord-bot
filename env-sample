@@ -1,6 +1,6 @@
 # this should be renamed .env
 
 DISCORD_TOKEN=<ENTER TOKEN HERE>
-PLAYER1=<YOUR BOT NAME>
+PLAYER1=<YOUR BOT NAME> # matches case inside ./bots folder
 # this is channel on discord where match results should be posted. 
-CHANNEL_ID=1336428599217229877
+CHANNEL_NAME = 'match-runner'

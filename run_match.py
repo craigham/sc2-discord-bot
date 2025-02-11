@@ -11,11 +11,11 @@ import os
 load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 PLAYER1 = os.getenv('PLAYER1')
-CHANNEL_NAME = 'match-runner'
-
+CHANNEL_NAME = os.getenv('match-runner')
 MAPS_PATH = './maps'
 LADDERBOTS_TYPE = {"BinaryCpp": "cpplinux", "Python": "python", "DotNetCore": "dotnetcore"}
 MAP_FILE_EXT = 'SC2Map'
+
 BOTS = sorted((x.name for x in Path('./bots').iterdir() if not x.is_file()))
 MAPS = sorted(file.name.rstrip('AIE.SC2Map') for file in Path('./maps').iterdir()
                   if file.is_file()
@@ -65,9 +65,7 @@ class Sc2Runner(discord.Client):
         match_results = get_results_json()[-1]
         match_results['opponent'] = match.bot2
         match_results['map'] = match.map
-        formatted_results = f"**Match Results:**\n```json\n{json.dumps(match_results, indent=4)}\n```"
-        print(formatted_results)
-        print(f'Channel id: {self.channel_id}')
+        formatted_results = f"**Match Results:**\n```json\n{json.dumps(match_results, indent=4)}\n```"        
         if self.channel_id:
             channel = self.get_channel(self.channel_id)
             await channel.send(formatted_results)
@@ -83,25 +81,14 @@ class Sc2Runner(discord.Client):
     async def setup_hook(self):
         self.queue_task = self.loop.create_task(self.process_queue())  
         
-
-    async def find_channel_id(self):
-        print('waiting for ready')
-        await self.wait_until_ready()
-        print('ready, finding channel id')
-        print(f'Guilds: {self.guilds}')
-        for guild in self.guilds:
-            print(f'Guild: {guild}')
-            channel = discord.utils.get(guild.text_channels, name=CHANNEL_NAME)
-            print(f'Channel: {channel}')
+    async def find_channel_id(self):        
+        for guild in self.guilds:        
+            channel = discord.utils.get(guild.text_channels, name=CHANNEL_NAME)        
             if channel:
                 self.channel_id = channel.id
-                print(f'Channel id: {self.channel_id}')
                 break      
         
         
-# channel = await self.fetch_channel(CHANNEL_ID)
-# await channel.send(f'Bot {self.bot_name} is ready to queue matches')
-
 intents = discord.Intents.default()
 intents.message_content = True
 client = Sc2Runner(PLAYER1, intents=intents)
