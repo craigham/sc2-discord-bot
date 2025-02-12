@@ -3,6 +3,7 @@ A discord bot which controls local-bootstrap to run matches by sending commands 
 ## Necessary to run
 
 Need to create an application and get a bot token on Discord website.
+https://realpython.com/how-to-make-a-discord-bot-python/
 
 create .env file based on sample in repo.
 
@@ -41,3 +42,4 @@ You can queue multiple matches.
 
 ## View the match queue
 !queue
+
