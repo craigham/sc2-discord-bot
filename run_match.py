@@ -115,7 +115,7 @@ async def on_message(message):
         if len(match_params) == 2:
             opponent, the_map = match_params
         else:
-            opponent = match_params        
+            opponent = match_params[0]        
             the_map = random.choice(MAPS)
         await message.channel.send(f'Queueing match against: {opponent} on map: {the_map}')
         client.queue_match(opponent, the_map + 'AIE')
