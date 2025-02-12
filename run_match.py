@@ -11,7 +11,7 @@ import os
 load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 PLAYER1 = os.getenv('PLAYER1')
-CHANNEL_NAME = os.getenv('match-runner')
+CHANNEL_NAME = os.getenv('CHANNEL_NAME')
 MAPS_PATH = './maps'
 LADDERBOTS_TYPE = {"BinaryCpp": "cpplinux", "Python": "python", "DotNetCore": "dotnetcore"}
 MAP_FILE_EXT = 'SC2Map'
@@ -81,14 +81,21 @@ class Sc2Runner(discord.Client):
     async def setup_hook(self):
         self.queue_task = self.loop.create_task(self.process_queue())  
         
-    async def find_channel_id(self):        
-        for guild in self.guilds:        
-            channel = discord.utils.get(guild.text_channels, name=CHANNEL_NAME)        
+
+    async def find_channel_id(self):
+        print('waiting for ready')
+        await self.wait_until_ready()        
+        for guild in self.guilds:
+            channel = discord.utils.get(guild.text_channels, name=CHANNEL_NAME)
             if channel:
                 self.channel_id = channel.id
+                print(f'Channel id: {self.channel_id}')
                 break      
         
         
+# channel = await self.fetch_channel(CHANNEL_ID)
+# await channel.send(f'Bot {self.bot_name} is ready to queue matches')
+
 intents = discord.Intents.default()
 intents.message_content = True
 client = Sc2Runner(PLAYER1, intents=intents)
@@ -108,7 +115,7 @@ async def on_message(message):
         if len(match_params) == 2:
             opponent, the_map = match_params
         else:
-            opponent = match_params[0]        
+            opponent = match_params        
             the_map = random.choice(MAPS)
         await message.channel.send(f'Queueing match against: {opponent} on map: {the_map}')
         client.queue_match(opponent, the_map + 'AIE')
