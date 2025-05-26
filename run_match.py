@@ -6,12 +6,15 @@ import discord
 import asyncio
 from dotenv import load_dotenv
 import os
+from log_monitor import LogMonitor
 
 # Load environment variables from .env file
 load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 PLAYER1 = os.getenv('PLAYER1')
 CHANNEL_NAME = os.getenv('CHANNEL_NAME')
+GRAYLOG_HOST = os.getenv('GRAYLOG_HOST', None)
+GRAYLOG_PORT = int(os.getenv('GRAYLOG_PORT', '12201'))
 MAPS_PATH = './maps'
 LADDERBOTS_TYPE = {"BinaryCpp": "cpplinux", "Python": "python", "DotNetCore": "dotnetcore"}
 MAP_FILE_EXT = 'SC2Map'
@@ -45,6 +48,18 @@ class Sc2Runner(discord.Client):
         self.queue_task = None
         self.current_match = None
         self.channel_id = None
+        
+        # Initialize log monitor
+        if GRAYLOG_HOST:
+            print(f"GRAYLOG_HOST is set to: {GRAYLOG_HOST}")
+            log_path = os.path.join('logs', 'bot_controller1', 'TBone', 'stderr.log')
+            print(f'Initializing log monitor with path: {log_path} and host: {GRAYLOG_HOST} and port: {GRAYLOG_PORT}')
+            self.log_monitor = LogMonitor(log_path, GRAYLOG_HOST, GRAYLOG_PORT)
+            print("LogMonitor instance created, starting monitoring...")
+            self.log_monitor.start_monitoring()
+            print("LogMonitor start_monitoring called")
+        else:
+            print("GRAYLOG_HOST not set, skipping log monitor initialization")
 
     def queue_match(self, opponent, map_name):
         self.match_queue.append(SC2Match(map_name, self.bot_name, opponent, 3))
@@ -71,13 +86,16 @@ class Sc2Runner(discord.Client):
             await channel.send(formatted_results)
 
     async def do_match(self, match:SC2Match):        
+        # Update match ID before starting the match
+        self.log_monitor.update_match_id()
+        
         matchString = f"1,{match.bot1},T,python,2,{match.bot2},T,{get_bot_exe_type(match.bot2)},{match.map}"
         with open("matches", "w") as f:
             f.write(f"{matchString}")
         command = f'docker-compose -f docker-compose-host-network.yml up'
         process = await asyncio.create_subprocess_shell(command, shell=True, executable='/bin/bash')
         await process.communicate()
-        
+
     async def setup_hook(self):
         self.queue_task = self.loop.create_task(self.process_queue())  
         
@@ -95,6 +113,11 @@ class Sc2Runner(discord.Client):
         
 # channel = await self.fetch_channel(CHANNEL_ID)
 # await channel.send(f'Bot {self.bot_name} is ready to queue matches')
+
+    async def close(self):
+        """Clean up resources when the client is closing."""
+        self.log_monitor.stop_monitoring()
+        await super().close()
 
 intents = discord.Intents.default()
 intents.message_content = True

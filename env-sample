@@ -4,3 +4,7 @@ DISCORD_TOKEN=<ENTER TOKEN HERE>
 PLAYER1=<YOUR BOT NAME> # matches case inside ./bots folder
 # this is channel on discord where match results should be posted. 
 CHANNEL_NAME = 'match-runner'
+
+# Graylog configuration
+GRAYLOG_HOST=192.168.1.17
+GRAYLOG_PORT=12201
