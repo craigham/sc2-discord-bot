@@ -18,6 +18,7 @@ class DebugLine(TypedDict):
     gas: str
     supply_used: int
     supply_capacity: int
+    log_level: str
     source_file: str
     line_number: int
     message: str
@@ -35,7 +36,7 @@ class LogMonitor:
         stdout_handler.setFormatter(formatter)
         self.logger.addHandler(stdout_handler)
         # Add graypy handler
-        handler = graypy.GELFUDPHandler(graylog_host, graylog_port)
+        handler = graypy.GELFUDPHandler(graylog_host, graylog_port, debugging_fields=False)
         self.logger.addHandler(handler)
         self.current_match_id: int | None = None
         self.monitor_task: asyncio.Task[None] | None = None
@@ -45,17 +46,18 @@ class LogMonitor:
 
     def _parse_debug_line(self, line: str) -> Optional[DebugLine]:
         """Parse a debug line into structured data."""
-        # Improved regex: allow for any whitespace (spaces/tabs) between columns
+        # Improved regex: allow for any whitespace (spaces/tabs) between columns and handle log level
         pattern = (
             r'(\d{2}:\d{2})\s+'         # game_time
             r'(\d+)\s+'                 # game_step
             r'(\d+ms)\s+'               # step_length
             r'(\d+M)\s+'                # minerals
             r'(\d+G)\s+'                # gas
-            r'(\d+)\s*/\s*(\d+)U\s+' # supply used/capacity (allow spaces around /)
+            r'(\d+)\s*/\s*(\d+)U\s+'   # supply used/capacity (allow spaces around /)
+            r'(INFO|DEBUG|WARNING|Level \d+)\s+' # log level (added WARNING)
             r'([^\s:]+(?:\.[^\s:]+)*):' # source_file (allow dots, no spaces or colons)
             r'(\d+)\s+'                 # line_number
-            r'(.*)'                       # message
+            r'(.*)'                     # message
         )
         match = re.match(pattern, line.strip())
         if not match:
@@ -68,9 +70,10 @@ class LogMonitor:
             'gas': match.group(5),
             'supply_used': int(match.group(6)),
             'supply_capacity': int(match.group(7)),
-            'source_file': match.group(8),
-            'line_number': int(match.group(9)),
-            'message': match.group(10)
+            'log_level': match.group(8),
+            'source_file': match.group(9),
+            'line_number': int(match.group(10)),
+            'message': match.group(11)
         }
 
     def _get_next_match_id(self) -> int:
@@ -118,8 +121,8 @@ class LogMonitor:
                     self.logger.debug(f"Debug data: {debug_data}")
                     # Log to Graylog with extra fields
                     extra = {
-                        'match_id': self.current_match_id,
-                        'source': 'starcraft_bot_controller',
+                        'match': self.current_match_id,
+                        'source': 'sc2_test_runner',
                         'host': os.uname().nodename
                     }
                     
@@ -134,7 +137,12 @@ class LogMonitor:
                             'supply_used': debug_data['supply_used'],
                             'supply_capacity': debug_data['supply_capacity'],
                             'source_file': debug_data['source_file'],
-                            'line_number': debug_data['line_number']
+                            'line_number': debug_data['line_number'],
+                            'log_level': debug_data['log_level'],
+                            # Override GELF fields with parsed data
+                            # '_file': debug_data['source_file'],
+                            # '_line': debug_data['line_number'],
+                            # '_function': debug_data['source_file'].split('.')[-1]  # Use last part of source file as function name
                         })
                         # Use the parsed message
                         message = debug_data['message']

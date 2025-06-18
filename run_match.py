@@ -85,16 +85,30 @@ class Sc2Runner(discord.Client):
             channel = self.get_channel(self.channel_id)
             await channel.send(formatted_results)
 
-    async def do_match(self, match:SC2Match):        
-        # Update match ID before starting the match
-        self.log_monitor.update_match_id()
-        
+    async def do_match(self, match: SC2Match):
+        # Retrieve the current match ID from results.json
+        current_match_id = self._get_next_match_id()
+        self.log_monitor.current_match_id = current_match_id
+        # Send a status update to Discord
+        if self.channel_id:
+            channel = self.get_channel(self.channel_id)
+            await channel.send(f"Match {current_match_id} started: {match.bot1} vs {match.bot2} on map {match.map}")
         matchString = f"1,{match.bot1},T,python,2,{match.bot2},T,{get_bot_exe_type(match.bot2)},{match.map}"
         with open("matches", "w") as f:
             f.write(f"{matchString}")
         command = f'docker-compose -f docker-compose-host-network.yml up'
         process = await asyncio.create_subprocess_shell(command, shell=True, executable='/bin/bash')
         await process.communicate()
+
+    def _get_next_match_id(self) -> int:
+        """Get the next match ID by incrementing the last match's 'match' field from results.json."""
+        try:
+            with open('results.json', 'r') as f:
+                results = json.load(f)
+                last_match = results['results'][-1]
+                return last_match.get('match', 0) + 1
+        except (FileNotFoundError, json.JSONDecodeError, IndexError, KeyError):
+            return 1
 
     async def setup_hook(self):
         self.queue_task = self.loop.create_task(self.process_queue())  
