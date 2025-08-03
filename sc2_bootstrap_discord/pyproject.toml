@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sc2-bootstrap-discord"
+dynamic = ["version"]
+description = "A Discord bot for managing StarCraft 2 matches with local-bootstrap"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Craig Hamilton", email = "craigh@quailholdings.com"},
+]
+maintainers = [
+    {name = "Craig Hamilton", email = "craigh@quailholdings.com"},
+]
+keywords = ["starcraft", "discord", "bot", "gaming", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Games/Entertainment",
+    "Topic :: Communications :: Chat",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "discord.py>=2.0.0",
+    "graypy>=2.1.0",
+    "python-dotenv>=0.19.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "black>=21.0",
+    "flake8>=3.8",
+    "mypy>=0.800",
+]
+
+[project.scripts]
+sc2-bootstrap-discord = "sc2_bootstrap_discord.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/craigham/sc2-discord-bot"
+Documentation = "https://github.com/craigham/sc2-discord-bot#readme"
+Repository = "https://github.com/craigham/sc2-discord-bot"
+"Bug Tracker" = "https://github.com/craigham/sc2-discord-bot/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+write_to = "src/sc2_bootstrap_discord/_version.py"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src/sc2_bootstrap_discord",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+] 

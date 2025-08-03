@@ -1,0 +1,1 @@
+# Tests package for sc2_bootstrap_discord 

@@ -61,8 +61,8 @@ class Sc2Runner(discord.Client):
         else:
             print("GRAYLOG_HOST not set, skipping log monitor initialization")
 
-    def queue_match(self, opponent, map_name):
-        self.match_queue.append(SC2Match(map_name, self.bot_name, opponent, 3))
+    def queue_match(self, player1, player2, map_name):
+        self.match_queue.append(SC2Match(map_name, player1, player2, 3))
 
     async def process_queue(self):
         while True:
@@ -140,7 +140,7 @@ client = Sc2Runner(PLAYER1, intents=intents)
 
 @client.event
 async def on_ready():
-    print(f'We have logged in as {client.user}')
+    print(f'We have logged in as {client.user}')ba
     await client.find_channel_id()
 
 @client.event
@@ -155,7 +155,16 @@ async def on_message(message):
             opponent = match_params[0]        
             the_map = random.choice(MAPS)
         await message.channel.send(f'Queueing match against: {opponent} on map: {the_map}')
-        client.queue_match(opponent, the_map + 'AIE')
+        client.queue_match(self.player_name, opponent, the_map + 'AIE')
+    elif message.content.startswith('!micro'):
+        _, *match_params = message.content.split()
+        if len(match_params) == 2:
+            opponent, the_map = match_params
+        else:
+            opponent = match_params[0]        
+            the_map = 'Tier1MicroAIArena_v6'
+        await message.channel.send(f'Queueing match against: {opponent} on map: {the_map}')
+        client.queue_match("TBoneMicro", opponent, the_map)
     elif message.content.startswith('!bots'):
         await message.channel.send(f'{BOTS}')
     elif message.content.startswith('!maps'):
