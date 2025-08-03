@@ -37,7 +37,7 @@ def get_bot_exe_type(bot_name):
             bot_info = json.load(results_file)
             bot_type = bot_info['Bots'][bot_name]['Type']
             return LADDERBOTS_TYPE[bot_type]
-    except FileNotFoundError:
+    except (FileNotFoundError, KeyError):
         return "python"
 
 class Sc2Runner(discord.Client):
@@ -59,6 +59,7 @@ class Sc2Runner(discord.Client):
             self.log_monitor.start_monitoring()
             print("LogMonitor start_monitoring called")
         else:
+            self.log_monitor = None
             print("GRAYLOG_HOST not set, skipping log monitor initialization")
 
     def queue_match(self, player1, player2, map_name):
@@ -88,7 +89,8 @@ class Sc2Runner(discord.Client):
     async def do_match(self, match: SC2Match):
         # Retrieve the current match ID from results.json
         current_match_id = self._get_next_match_id()
-        self.log_monitor.current_match_id = current_match_id
+        if self.log_monitor:
+            self.log_monitor.current_match_id = current_match_id
         # Send a status update to Discord
         if self.channel_id:
             channel = self.get_channel(self.channel_id)
@@ -130,7 +132,8 @@ class Sc2Runner(discord.Client):
 
     async def close(self):
         """Clean up resources when the client is closing."""
-        self.log_monitor.stop_monitoring()
+        if self.log_monitor:
+            self.log_monitor.stop_monitoring()
         await super().close()
 
 intents = discord.Intents.default()
@@ -140,7 +143,7 @@ client = Sc2Runner(PLAYER1, intents=intents)
 
 @client.event
 async def on_ready():
-    print(f'We have logged in as {client.user}')ba
+    print(f'We have logged in as {client.user}')
     await client.find_channel_id()
 
 @client.event
@@ -155,7 +158,7 @@ async def on_message(message):
             opponent = match_params[0]        
             the_map = random.choice(MAPS)
         await message.channel.send(f'Queueing match against: {opponent} on map: {the_map}')
-        client.queue_match(self.player_name, opponent, the_map + 'AIE')
+        client.queue_match(self.bot_name, opponent, the_map + 'AIE')
     elif message.content.startswith('!micro'):
         _, *match_params = message.content.split()
         if len(match_params) == 2:
