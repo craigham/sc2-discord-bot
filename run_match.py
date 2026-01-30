@@ -85,15 +85,25 @@ class Sc2Runner(discord.Client):
             if self.match_queue:
                 match = self.match_queue.pop(0)
                 self.current_match = match
-                await self.do_match(match)
+                expected_match_id = await self.do_match(match)
                 print(f'Match ended: {match}')
-                await self.report_result(match)
+                await self.report_result(match, expected_match_id)
                 self.current_match = None                
                 
             await asyncio.sleep(3)  # Sleep to prevent tight loop
 
-    async def report_result(self, match:SC2Match):
+    async def report_result(self, match:SC2Match, expected_match_id: int):
+        # docker-compose blocks until match completes, so results.json is ready
         match_results = get_results_json()[-1]
+        
+        # Verify we're reading the correct match result
+        if match_results.get('match') != expected_match_id:
+            error_msg = f"⚠️ **Error:** Expected match {expected_match_id} but results.json shows match {match_results.get('match')}."
+            if self.channel_id:
+                channel = self.get_channel(self.channel_id)
+                await channel.send(error_msg)
+            return
+        
         match_results['opponent'] = match.bot2
         match_results['map'] = match.map
         
@@ -141,6 +151,7 @@ class Sc2Runner(discord.Client):
         command = f'docker-compose -f docker-compose-host-network.yml up'
         process = await asyncio.create_subprocess_shell(command, shell=True, executable='/bin/bash')
         await process.communicate()
+        return current_match_id
 
     def _get_next_match_id(self) -> int:
         """Get the next match ID by incrementing the last match's 'match' field from results.json."""
