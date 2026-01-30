@@ -25,11 +25,26 @@ MAPS = sorted(file.name.rstrip('AIE.SC2Map') for file in Path('./maps').iterdir(
                   and file.name.split('.')[-1] == 'SC2Map'
                   and not file.name.startswith('.'))
 
-SC2Match = namedtuple('SC2Match', ['map', 'bot1', 'bot2', 'priority'])
+SC2Match = namedtuple('SC2Match', ['map', 'bot1', 'bot2', 'priority', 'retry_count'])
 
 def get_results_json():
     with open('results.json', 'r') as results_file:
         return json.load(results_file)['results']
+
+def remove_last_result():
+    """Remove the last entry from results.json (for failed matches before retry)"""
+    try:
+        with open('results.json', 'r') as f:
+            data = json.load(f)
+        
+        if data.get('results') and len(data['results']) > 0:
+            data['results'].pop()  # Remove last entry
+            
+            with open('results.json', 'w') as f:
+                json.dump(data, f, indent=2)
+            return True
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return False
         
 def get_bot_exe_type(bot_name):
     try:
@@ -62,26 +77,61 @@ class Sc2Runner(discord.Client):
             self.log_monitor = None
             print("GRAYLOG_HOST not set, skipping log monitor initialization")
 
-    def queue_match(self, player1, player2, map_name):
-        self.match_queue.append(SC2Match(map_name, player1, player2, 3))
+    def queue_match(self, player1, player2, map_name, retry_count=0):
+        self.match_queue.append(SC2Match(map_name, player1, player2, 3, retry_count))
 
     async def process_queue(self):
         while True:
             if self.match_queue:
                 match = self.match_queue.pop(0)
                 self.current_match = match
-                await self.do_match(match)
+                expected_match_id = await self.do_match(match)
                 print(f'Match ended: {match}')
-                await self.report_result(match)
+                await self.report_result(match, expected_match_id)
                 self.current_match = None                
                 
             await asyncio.sleep(3)  # Sleep to prevent tight loop
 
-    async def report_result(self, match:SC2Match):
+    async def report_result(self, match:SC2Match, expected_match_id: int):
+        # docker-compose blocks until match completes, so results.json is ready
         match_results = get_results_json()[-1]
+        
+        # Verify we're reading the correct match result
+        if match_results.get('match') != expected_match_id:
+            error_msg = f"⚠️ **Error:** Expected match {expected_match_id} but results.json shows match {match_results.get('match')}."
+            if self.channel_id:
+                channel = self.get_channel(self.channel_id)
+                await channel.send(error_msg)
+            return
+        
         match_results['opponent'] = match.bot2
         match_results['map'] = match.map
-        formatted_results = f"**Match Results:**\n```json\n{json.dumps(match_results, indent=4)}\n```"        
+        
+        # Check for InitializationError and retry if under max attempts
+        MAX_RETRIES = 4
+        if match_results.get('type') == 'InitializationError' and match.retry_count < MAX_RETRIES:
+            retry_msg = f"⚠️ **InitializationError detected** (attempt {match.retry_count + 1}/{MAX_RETRIES})\n"
+            retry_msg += f"Automatically retrying: {match.bot1} vs {match.bot2} on {match.map}"
+            if self.channel_id:
+                channel = self.get_channel(self.channel_id)
+                await channel.send(retry_msg)
+            
+            # Remove the failed result from results.json before retrying
+            remove_last_result()
+            
+            # Requeue the match with incremented retry count
+            self.queue_match(match.bot1, match.bot2, match.map, retry_count=match.retry_count + 1)
+            return
+        
+        # If we hit max retries on InitializationError, report it
+        if match_results.get('type') == 'InitializationError' and match.retry_count >= MAX_RETRIES:
+            formatted_results = f"❌ **Max retries reached ({MAX_RETRIES}) - InitializationError persists**\n"
+            formatted_results += f"```json\n{json.dumps(match_results, indent=4)}\n```"
+        else:
+            # Normal result or successful retry
+            retry_info = f" (succeeded after {match.retry_count} {'retry' if match.retry_count == 1 else 'retries'})" if match.retry_count > 0 else ""
+            formatted_results = f"**Match Results{retry_info}:**\n```json\n{json.dumps(match_results, indent=4)}\n```"
+        
         if self.channel_id:
             channel = self.get_channel(self.channel_id)
             await channel.send(formatted_results)
@@ -101,6 +151,7 @@ class Sc2Runner(discord.Client):
         command = f'docker-compose -f docker-compose-host-network.yml up'
         process = await asyncio.create_subprocess_shell(command, shell=True, executable='/bin/bash')
         await process.communicate()
+        return current_match_id
 
     def _get_next_match_id(self) -> int:
         """Get the next match ID by incrementing the last match's 'match' field from results.json."""
