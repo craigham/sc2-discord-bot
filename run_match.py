@@ -25,11 +25,26 @@ MAPS = sorted(file.name.rstrip('AIE.SC2Map') for file in Path('./maps').iterdir(
                   and file.name.split('.')[-1] == 'SC2Map'
                   and not file.name.startswith('.'))
 
-SC2Match = namedtuple('SC2Match', ['map', 'bot1', 'bot2', 'priority'])
+SC2Match = namedtuple('SC2Match', ['map', 'bot1', 'bot2', 'priority', 'retry_count'])
 
 def get_results_json():
     with open('results.json', 'r') as results_file:
         return json.load(results_file)['results']
+
+def remove_last_result():
+    """Remove the last entry from results.json (for failed matches before retry)"""
+    try:
+        with open('results.json', 'r') as f:
+            data = json.load(f)
+        
+        if data.get('results') and len(data['results']) > 0:
+            data['results'].pop()  # Remove last entry
+            
+            with open('results.json', 'w') as f:
+                json.dump(data, f, indent=2)
+            return True
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return False
         
 def get_bot_exe_type(bot_name):
     try:
@@ -62,8 +77,8 @@ class Sc2Runner(discord.Client):
             self.log_monitor = None
             print("GRAYLOG_HOST not set, skipping log monitor initialization")
 
-    def queue_match(self, player1, player2, map_name):
-        self.match_queue.append(SC2Match(map_name, player1, player2, 3))
+    def queue_match(self, player1, player2, map_name, retry_count=0):
+        self.match_queue.append(SC2Match(map_name, player1, player2, 3, retry_count))
 
     async def process_queue(self):
         while True:
@@ -81,7 +96,32 @@ class Sc2Runner(discord.Client):
         match_results = get_results_json()[-1]
         match_results['opponent'] = match.bot2
         match_results['map'] = match.map
-        formatted_results = f"**Match Results:**\n```json\n{json.dumps(match_results, indent=4)}\n```"        
+        
+        # Check for InitializationError and retry if under max attempts
+        MAX_RETRIES = 4
+        if match_results.get('type') == 'InitializationError' and match.retry_count < MAX_RETRIES:
+            retry_msg = f"⚠️ **InitializationError detected** (attempt {match.retry_count + 1}/{MAX_RETRIES})\n"
+            retry_msg += f"Automatically retrying: {match.bot1} vs {match.bot2} on {match.map}"
+            if self.channel_id:
+                channel = self.get_channel(self.channel_id)
+                await channel.send(retry_msg)
+            
+            # Remove the failed result from results.json before retrying
+            remove_last_result()
+            
+            # Requeue the match with incremented retry count
+            self.queue_match(match.bot1, match.bot2, match.map, retry_count=match.retry_count + 1)
+            return
+        
+        # If we hit max retries on InitializationError, report it
+        if match_results.get('type') == 'InitializationError' and match.retry_count >= MAX_RETRIES:
+            formatted_results = f"❌ **Max retries reached ({MAX_RETRIES}) - InitializationError persists**\n"
+            formatted_results += f"```json\n{json.dumps(match_results, indent=4)}\n```"
+        else:
+            # Normal result or successful retry
+            retry_info = f" (succeeded after {match.retry_count} {'retry' if match.retry_count == 1 else 'retries'})" if match.retry_count > 0 else ""
+            formatted_results = f"**Match Results{retry_info}:**\n```json\n{json.dumps(match_results, indent=4)}\n```"
+        
         if self.channel_id:
             channel = self.get_channel(self.channel_id)
             await channel.send(formatted_results)
